@@ -1,0 +1,218 @@
+<head>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin="">
+<link rel="stylesheet" href="./MarkerCluster.Default.css">
+<link rel="stylesheet" href="./MarkerCluster.css">
+</head>
+<div id="map">
+</div>
+<div id="info">
+</div>
+
+<script src="geo_data.js"></script>
+<script src="https://code.jquery.com/jquery-3.5.1.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+<script src="./leaflet.markercluster.js"></script>
+<script src="./leaflet.featuregroup.subgroup.js"></script>
+<script>
+    var all_datasets = geo_data;
+    var map = L.map('map').setView([46.839674, 11.005253], 1);
+	
+	// Dynamically inject token if using an environment variable in deployment
+	if (typeof process !== 'undefined' && process.env.MAPBOX_ACCESS_TOKEN) {
+		accessToken = process.env.MAPBOX_ACCESS_TOKEN;
+	}
+	
+    // Make sure map tiles load correctly
+    setTimeout(function () {
+        map.invalidateSize(true);
+    }, 100);
+
+    L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=${accessToken}', 
+        {id: 'mapbox/light-v9', tileSize: 512, zoomOffset: -1, 
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            draggable: true,
+            autoPan: false,
+            minZoom: 1
+        }).addTo(map);
+    
+    // Set bounds to avoid panning outside of world bound
+    // Source: https://stackoverflow.com/questions/25741532/disable-drag-once-attained-maximum-bounds-in-leaflet
+    var bounds = L.latLngBounds(L.latLng(-90, -200), L.latLng(90, 200));
+    map.setMaxBounds(bounds);
+    map.on('drag', () => { map.panInsideBounds(bounds, {animate: false}) });
+
+    // Define custom marker
+    var markerIcon = L.Icon.extend({
+        options: {
+            shadowUrl: 'empty-shadow.png',
+            iconSize:     [16, 16],
+            shadowSize:   [0, 0],
+            iconAnchor:   [8, 12],
+            shadowAnchor: [0, 0],
+            popupAnchor:  [0, -12]
+        }
+    });
+
+    // Markers of different colors
+    var greenIcon = new markerIcon({iconUrl: 'triangle-green.png'}),
+        redIcon = new markerIcon({iconUrl: 'triangle-red.png'}),
+        yellowIcon = new markerIcon({iconUrl: 'triangle-yellow.png'});
+        blueIcon = new markerIcon({iconUrl: 'triangle-blue.png'});
+        lilacIcon = new markerIcon({iconUrl: 'triangle-lilac.png'});
+        grayIcon = new markerIcon({iconUrl: 'triangle-gray.png'});
+
+	var mcg = L.markerClusterGroup().addTo(map);
+	
+    // Define marker clustergroups
+    var tlsLayer = L.featureGroup.subGroup(mcg),
+        ulsLayer = L.featureGroup.subGroup(mcg),
+        alsLayer = L.featureGroup.subGroup(mcg),
+        vlsLayer = L.featureGroup.subGroup(mcg),
+        phtgmtryLayer = L.featureGroup.subGroup(mcg),
+        othersLayer = L.featureGroup.subGroup(mcg);
+    
+    // When clicking on a marker, an info table will be shown below
+    makeTable = (marker, dataset) => {
+        marker.on('click', () => {
+            var text = "<table id='details'>";
+            for (var key in dataset.properties) {
+
+                if  (key == "projects" && Array.isArray(dataset.properties[key])) {
+                    text += "<tr><td>" + key + "</td><td>";
+                    for (let i in dataset.properties[key]) { 
+                        text += dataset.properties[key][i] + "<br/>"; 
+                    }
+                    text += "</td></tr>";
+                }
+
+                else if (key != "popupContent") {
+                    if (Array.isArray(dataset.properties[key])) {
+                        text += "<tr><td>" + key + "</td><td>" + dataset.properties[key].join(', ') + "</td></tr>";
+                    } else {
+                        text += "<tr><td>" + key + "</td><td>" + dataset.properties[key] + "</td></tr>";
+                    }
+                }
+            }
+            $("#info").html(text + "</table>");
+        });
+    }
+
+    // var group = L.markerClusterGroup();  // Marker cluster group plug-in
+
+    makeMarker = (methods, dataset) => {
+            if (methods.some(str => str.startsWith('T'))) {
+                marker = L.marker(dataset.geometry.coordinates, {icon: redIcon}).bindPopup(dataset.properties.popupContent);
+                makeTable(marker, dataset);
+                tlsLayer.addLayer(marker);
+            }
+            if (methods.some(str => str.startsWith('U'))) {
+                marker = L.marker(dataset.geometry.coordinates, {icon: blueIcon}).bindPopup(dataset.properties.popupContent);
+                makeTable(marker, dataset);
+                ulsLayer.addLayer(marker);
+            }
+            if (methods.some(str => str.startsWith('A'))) {
+                marker = L.marker(dataset.geometry.coordinates, {icon: greenIcon}).bindPopup(dataset.properties.popupContent);
+                makeTable(marker, dataset);
+                alsLayer.addLayer(marker);
+            }
+            if (methods.some(str => str.startsWith('V'))) {
+                marker = L.marker(dataset.geometry.coordinates, {icon: lilacIcon}).bindPopup(dataset.properties.popupContent);
+                makeTable(marker, dataset);
+                vlsLayer.addLayer(marker);
+            }
+            if (methods.some(str => str.startsWith('P'))) {
+                marker = L.marker(dataset.geometry.coordinates, {icon: yellowIcon}).bindPopup(dataset.properties.popupContent);
+                makeTable(marker, dataset);
+                phtgmtryLayer.addLayer(marker);
+            }
+            if (methods.some(str => str.startsWith('O'))) {
+                marker = L.marker(dataset.geometry.coordinates, {icon: grayIcon}).bindPopup(dataset.properties.popupContent);
+                makeTable(marker, dataset);
+                othersLayer.addLayer(marker);
+            }
+    }
+
+
+    all_datasets.forEach((dataset, idx) => {
+        makeMarker(dataset.properties.method, dataset);
+    });
+
+    // Prepair layer-control (legend)
+    var overlays = {
+        "TLS": tlsLayer,
+        "ULS": ulsLayer,
+        "ALS": alsLayer,
+        "VLS": vlsLayer,
+        "Photogrammetry": phtgmtryLayer,
+        "Others": othersLayer
+    }
+	
+	
+    L.control.layers(null, overlays).addTo(map); // Add layer-control (legend) to map
+    // Display all layers by default
+    tlsLayer.addTo(map); 
+    ulsLayer.addTo(map);
+    alsLayer.addTo(map);
+    vlsLayer.addTo(map);
+    phtgmtryLayer.addTo(map);
+    othersLayer.addTo(map);
+
+</script>
+
+<style>
+    #map {
+        width: 500px;
+        height: 400px;
+        margin: 0 auto;
+    }
+
+    #info {
+        height: 200px;
+        width: 500px;
+        margin: 0 auto;
+    }
+
+    table#details {
+        margin-top: 10px;
+        border-spacing: 0 1px;
+        font-size: 0.9em;
+        font-size: 12.9px;
+    }
+
+    #details::before {
+        position: absolute;
+        content: " ";
+        width: 0; 
+        height: 0; 
+        left: 50%;
+        transform: translateX(-50%) translateY(-10px);
+        border-left: 15px solid transparent;
+        border-right: 15px solid transparent;
+        border-bottom: 15px solid #fafafa;
+        z-index: -1;
+    }
+
+    #details tr {
+        background-color: #fafafa;
+        border: solid #fff 1px;
+    }
+
+    #details tr:hover {
+        background-color: #f3d9d9;
+        transition: background-color .15s ease-in-out;
+    }
+
+    #details td {
+        padding: 7px 12px;
+    }
+
+    #details tr td:first-child {
+        vertical-align: top;
+        text-align: left;
+        text-transform: capitalize;
+    }
+
+    a:link {
+        color : #900;
+    }
+</style>
